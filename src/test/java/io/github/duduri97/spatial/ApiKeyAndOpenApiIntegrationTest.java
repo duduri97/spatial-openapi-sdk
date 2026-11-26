@@ -99,5 +99,11 @@ class ApiKeyAndOpenApiIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         JsonNode summary = objectMapper.readTree(summaryRes);
         assertThat(summary.get("totalRequests").asLong()).isGreaterThanOrEqualTo(3L);
+
+        // 9. Verify cross-service health & CORS headers for realtime-3d-twin
+        mockMvc.perform(get("/api/v1/health")
+                        .header("Origin", "http://localhost:5173"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.service").value("spatial-openapi-sdk"));
     }
 }

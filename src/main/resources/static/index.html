@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spatial OpenAPI &amp; JS Map SDK Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.2.1/ol.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; display: grid; grid-template-columns: 360px 1fr; height: 100vh; }
+    aside { padding: 16px; border-right: 1px solid #1e293b; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 1.1rem; margin: 0; color: #38bdf8; }
+    h2 { font-size: 0.9rem; margin: 0 0 8px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card { background: #1e293b; border-radius: 10px; padding: 12px; }
+    label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 4px; }
+    input, select, button { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #f8fafc; font-size: 0.85rem; }
+    button { background: #0284c7; border-color: #0284c7; cursor: pointer; font-weight: 600; margin-top: 8px; }
+    button:hover { background: #0369a1; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    pre { background: #020617; padding: 10px; border-radius: 6px; font-size: 0.75rem; overflow-x: auto; max-height: 180px; margin: 8px 0 0; }
+    #map { width: 100%; height: 100%; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; background: #0ea5e933; color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <aside>
+    <div>
+      <h1>Spatial OpenAPI &amp; Map SDK</h1>
+      <span class="badge">Spring Boot · OpenLayers · EPSG:4326/3857/5179</span>
+    </div>
+
+    <div class="card">
+      <h2>1. SDK 설정 &amp; 레이어</h2>
+      <label for="apiKey">API Key</label>
+      <input id="apiKey" value="demo-spatial-key-2026" />
+      <label for="layerSelect" style="margin-top:8px;">레이어 필터</label>
+      <select id="layerSelect">
+        <option value="ALL">ALL (전체)</option>
+        <option value="LANDMARK">LANDMARK</option>
+        <option value="TRANSIT">TRANSIT</option>
+        <option value="PARK">PARK</option>
+        <option value="SENSOR">SENSOR</option>
+      </select>
+      <button id="loadBtn">GeoJSON 레이어 불러오기</button>
+    </div>
+
+    <div class="card">
+      <h2>2. 좌표 변환 (4326 → 5179 / 3857)</h2>
+      <div class="row">
+        <div><label>경도 (Lon)</label><input id="tx" value="126.9780" /></div>
+        <div><label>위도 (Lat)</label><input id="ty" value="37.5665" /></div>
+      </div>
+      <label style="margin-top:8px;">목표 좌표계</label>
+      <select id="toCrs">
+        <option value="EPSG:5179">EPSG:5179 (UTM-K)</option>
+        <option value="EPSG:3857">EPSG:3857 (Web Mercator)</option>
+      </select>
+      <button id="transformBtn">좌표 변환 실행</button>
+      <pre id="transformOut">결과가 여기에 표시됩니다.</pre>
+    </div>
+
+    <div class="card">
+      <h2>3. 롤업 메트릭 (로그 행 절감)</h2>
+      <button id="metricsBtn">실시간 롤업 통계 조회</button>
+      <pre id="metricsOut">API 호출 후 통계를 확인해 보세요.</pre>
+    </div>
+  </aside>
+
+  <main id="map"></main>
+
+  <script src="https://cdn.jsdelivr.net/npm/ol@10.2.1/dist/ol.js"></script>
+  <script src="/sdk/spatial-map-sdk.js"></script>
+  <script>
+    const vectorSource = new ol.source.Vector();
+    const vectorLayer = new ol.layer.Vector({
+      source: vectorSource,
+      style: (feature) => new ol.style.Style({
+        image: new ol.style.Circle({
+          radius: 7,
+          fill: new ol.style.Fill({ color: '#38bdf8' }),
+          stroke: new ol.style.Stroke({ color: '#0f172a', width: 2 })
+        }),
+        text: new ol.style.Text({
+          text: feature.get('name') || '',
+          offsetY: -16,
+          fill: new ol.style.Fill({ color: '#0f172a' }),
+          stroke: new ol.style.Stroke({ color: '#ffffff', width: 3 }),
+          font: '600 12px sans-serif'
+        })
+      })
+    });
+
+    const map = new ol.Map({
+      target: 'map',
+      layers: [new ol.layer.Tile({ source: new ol.source.OSM() }), vectorLayer],
+      view: new ol.View({ center: ol.proj.fromLonLat([126.9780, 37.5665]), zoom: 12 })
+    });
+
+    function createSdk() {
+      return new SpatialMapSDK({ apiKey: document.getElementById('apiKey').value.trim() });
+    }
+
+    async function loadGeoJson() {
+      const sdk = createSdk();
+      const layer = document.getElementById('layerSelect').value;
+      const geojson = await sdk.getFeaturesGeoJson({ layer });
+      vectorSource.clear();
+      const features = new ol.format.GeoJSON().readFeatures(geojson, {
+        dataProjection: 'EPSG:4326',
+        featureProjection: 'EPSG:3857'
+      });
+      vectorSource.addFeatures(features);
+    }
+
+    document.getElementById('loadBtn').addEventListener('click', loadGeoJson);
+    document.getElementById('transformBtn').addEventListener('click', async () => {
+      const sdk = createSdk();
+      const res = await sdk.transform({
+        x: Number(document.getElementById('tx').value),
+        y: Number(document.getElementById('ty').value),
+        from: 'EPSG:4326',
+        to: document.getElementById('toCrs').value
+      });
+      document.getElementById('transformOut').textContent = JSON.stringify(res, null, 2);
+    });
+    document.getElementById('metricsBtn').addEventListener('click', async () => {
+      const res = await fetch('/api/v1/metrics/summary').then(r => r.json());
+      document.getElementById('metricsOut').textContent = JSON.stringify({
+        totalRequests: res.totalRequests,
+        storedRollupRows: res.storedRollupRows,
+        rowReductionPercent: `${res.rowReductionPercent}%`
+      }, null, 2);
+    });
+
+    map.on('singleclick', async (evt) => {
+      const [lon, lat] = ol.proj.toLonLat(evt.coordinate);
+      document.getElementById('tx').value = lon.toFixed(6);
+      document.getElementById('ty').value = lat.toFixed(6);
+      const sdk = createSdk();
+      const nearby = await sdk.findNearby({ lon, lat, radiusMeters: 3000 });
+      document.getElementById('transformOut').textContent = JSON.stringify({
+        clicked: [Number(lon.toFixed(5)), Number(lat.toFixed(5))],
+        nearbyCountWithin3km: nearby.count,
+        closest: nearby.features.slice(0, 3).map(f => ({
+          name: f.properties.name,
+          distanceMeters: f.properties.distanceMeters
+        }))
+      }, null, 2);
+    });
+
+    loadGeoJson();
+  </script>
+</body>
+</html>

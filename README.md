@@ -47,3 +47,13 @@ flowchart LR
 | `GET` | `/openapi/v1/transform` | 좌표계 변환 (`4326` / `3857` / `5179`) |
 | `GET` | `/openapi/v1/features/geojson` | 레이어/BBox 기준 RFC 7946 GeoJSON 조회 |
 | `GET` | `/openapi/v1/features/nearby` | 중심 좌표 기준 반경(m) 내 공간 피처 검색 |
+| `GET` | `/geoserver/spatial/wms` | OGC WMS `GetMap`(`image/png`) · `GetCapabilities` · `GetFeatureInfo` 호환 엔드포인트 |
+
+## GeoServer(Docker) 레이어 발행
+
+Docker 환경에서는 PostGIS + 공식 GeoServer(`2.26.2`)를 함께 띄우고 스크립트 한 줄로 `spatial:spatial_features` WMS 레이어를 자동 발행할 수 있습니다:
+
+```powershell
+docker compose up -d
+.\scripts\publish-geoserver.ps1
+```

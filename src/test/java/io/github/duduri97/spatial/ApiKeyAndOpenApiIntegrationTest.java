@@ -105,5 +105,37 @@ class ApiKeyAndOpenApiIntegrationTest {
                         .header("Origin", "http://localhost:5173"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.service").value("spatial-openapi-sdk"));
+
+        // 10. Verify built-in OGC WMS GetCapabilities, GetMap (image/png), and GetFeatureInfo
+        mockMvc.perform(get("/geoserver/spatial/wms")
+                        .param("SERVICE", "WMS")
+                        .param("REQUEST", "GetCapabilities"))
+                .andExpect(status().isOk());
+
+        byte[] pngBytes = mockMvc.perform(get("/geoserver/spatial/wms")
+                        .param("SERVICE", "WMS")
+                        .param("VERSION", "1.3.0")
+                        .param("REQUEST", "GetMap")
+                        .param("LAYERS", "spatial:spatial_features")
+                        .param("CRS", "EPSG:3857")
+                        .param("BBOX", "14120000,4505000,14155000,4530000")
+                        .param("WIDTH", "256")
+                        .param("HEIGHT", "256")
+                        .param("FORMAT", "image/png"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(pngBytes.length).isGreaterThan(200);
+
+        mockMvc.perform(get("/geoserver/spatial/wms")
+                        .param("SERVICE", "WMS")
+                        .param("REQUEST", "GetFeatureInfo")
+                        .param("CRS", "EPSG:4326")
+                        .param("BBOX", "126.9680,37.5565,126.9880,37.5765")
+                        .param("WIDTH", "256")
+                        .param("HEIGHT", "256")
+                        .param("I", "128")
+                        .param("J", "128"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.features[0].properties.name").value("Seoul City Hall"));
     }
 }
